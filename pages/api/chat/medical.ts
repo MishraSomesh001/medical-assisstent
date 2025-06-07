@@ -95,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       model: 'gpt-4o',
       messages: messages as any,
       max_tokens: 1000,
-      temperature: 0.5,
+      temperature: 0.7,
       presence_penalty: 0.1,
       frequency_penalty: 0.1,
     });
