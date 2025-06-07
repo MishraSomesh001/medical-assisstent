@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom styles for AI chat responses */
+.ai-response {
+  line-height: 1.6;
+}
+
+.ai-response h3 {
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.ai-response ol, .ai-response ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.ai-response li {
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.ai-response strong {
+  background-color: #dbeafe;
+  color: #1e40af;
+  padding: 0.2em 0.4em;
+  border-radius: 0.3em;
+  font-weight: 600;
+}
+
+.ai-response p:first-child {
+  margin-top: 0;
+}
+
+.ai-response p:last-child {
+  margin-bottom: 0;
+}
+
+/* Smooth animations for chat messages */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.message-assistant {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.message-user {
+  animation: slideInRight 0.3s ease-out;
+}
