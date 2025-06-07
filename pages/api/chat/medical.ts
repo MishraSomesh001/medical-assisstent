@@ -7,38 +7,30 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MEDICAL_SYSTEM_PROMPT = `You are a compassionate and knowledgeable medical AI assistant. Your responses should be visually appealing, well-structured, and easy to read while providing helpful health information.
+const MEDICAL_SYSTEM_PROMPT = `You are a compassionate and knowledgeable medical AI assistant. You must respond in valid JSON format only.
 
-FORMATTING GUIDELINES:
-- Use emojis strategically to make responses more engaging and visual
-- Structure information with clear headings and bullet points
-- Use numbered lists for step-by-step instructions
-- Keep formatting clean and consistent - avoid extra spaces or broken lines
-- Make important information stand out with **bold text**
-- Use warm, empathetic language with appropriate medical terminology
-- Ensure proper spacing between sections
-
-RESPONSE STRUCTURE:
-1. **Empathetic Opening** 🤗 - Acknowledge their concern with care
-2. **Main Information** 📋 - Provide helpful, accurate medical information
-3. **Actionable Steps** ✅ - Clear, numbered recommendations
-4. **When to Seek Help** 🚨 - Clear guidance on medical consultation
-5. **Supportive Closing** 💙 - Encouraging and caring conclusion
-
-VISUAL ELEMENTS TO USE:
-- 🩺 for medical advice
-- 💊 for medication information
-- 🏥 for hospital/doctor visits
-- ⚠️ for warnings
-- ✅ for recommendations
-- 🌡️ for fever/temperature
-- 💧 for hydration
-- 😴 for rest
-- 🍎 for nutrition
-- 🏃‍♂️ for exercise
-- 🧠 for mental health
-- ❤️ for heart health
-- 📞 for emergency contacts
+RESPONSE FORMAT:
+You must respond with a JSON object containing these exact fields:
+{
+  "greeting": "Empathetic opening with emoji",
+  "mainContent": {
+    "summary": "Brief summary of the health topic",
+    "keyPoints": ["Point 1", "Point 2", "Point 3"],
+    "recommendations": [
+      {
+        "title": "Recommendation title",
+        "description": "Detailed description",
+        "icon": "🩺"
+      }
+    ]
+  },
+  "whenToSeekHelp": {
+    "urgentSigns": ["Sign 1", "Sign 2"],
+    "consultDoctor": ["Situation 1", "Situation 2"]
+  },
+  "disclaimer": "Medical disclaimer text",
+  "supportiveClosing": "Encouraging message with emoji"
+}
 
 MEDICAL GUIDELINES:
 - Provide evidence-based health information
@@ -50,14 +42,14 @@ MEDICAL GUIDELINES:
 - Include appropriate medical disclaimers
 - Never provide specific diagnoses
 
-FORMATTING RULES:
-- Use single line breaks within sections, double line breaks between sections
-- For bullet points, use simple "• " format (bullet + space)
-- For numbered lists, use "1. " format (number + period + space)
-- Keep bold text clean: **Text** (no extra spaces inside)
-- Place emojis at the start of headings or sections for visual appeal
+ICONS TO USE:
+🩺 medical advice, 💊 medication, 🏥 hospital, ⚠️ warnings, ✅ recommendations, 
+🌡️ fever, 💧 hydration, 😴 rest, 🍎 nutrition, 🏃‍♂️ exercise, 🧠 mental health, 
+❤️ heart health, 📞 emergency, 🤗 greeting, 💙 support
 
-TONE: Caring, professional, informative, and visually engaging while maintaining medical accuracy and safety.`;
+TONE: Caring, professional, informative, and supportive while maintaining medical accuracy and safety.
+
+IMPORTANT: Your response must be valid JSON only. Do not include any text outside the JSON object.`;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -77,27 +69,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (!process.env.OPENAI_API_KEY) {
+    console.error('OpenAI API key not configured');
     return res.status(500).json({ message: 'OpenAI API key not configured' });
   }
 
+  if (!process.env.OPENAI_API_KEY.startsWith('sk-')) {
+    console.error('Invalid OpenAI API key format');
+    return res.status(500).json({ message: 'Invalid OpenAI API key format' });
+  }
+
   try {
-    // Prepare conversation history for OpenAI
+    // Prepare conversation history for OpenAI - ensure all content is strings
     const messages = [
       { role: 'system', content: MEDICAL_SYSTEM_PROMPT },
       ...conversationHistory.map((msg: any) => ({
         role: msg.role,
-        content: msg.content
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
       })),
       { role: 'user', content: message }
     ];
 
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: messages as any,
-      max_tokens: 1000,
+      max_tokens: 1500,
       temperature: 0.7,
       presence_penalty: 0.1,
       frequency_penalty: 0.1,
+      response_format: { type: "json_object" },
     });
 
     const aiResponse = completion.choices[0]?.message?.content;
@@ -106,25 +106,77 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error('No response from OpenAI');
     }
 
-    res.status(200).json({
-      message: aiResponse,
-      usage: completion.usage,
-    });
+    // Parse and validate JSON response
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiResponse);
+      
+      // Validate required fields
+      if (!parsedResponse.greeting || !parsedResponse.mainContent || !parsedResponse.disclaimer) {
+        console.warn('Invalid JSON structure, falling back to text response');
+        // Fallback to text response
+        return res.status(200).json({
+          message: aiResponse,
+          usage: completion.usage,
+          type: 'text'
+        });
+      }
 
-  } catch (error) {
-    console.error('OpenAI API error:', error);
-    
-    if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        return res.status(401).json({ message: 'Invalid OpenAI API key' });
-      }
-      if (error.message.includes('quota')) {
-        return res.status(429).json({ message: 'API quota exceeded' });
-      }
+      // Return structured JSON response
+      res.status(200).json({
+        message: parsedResponse,
+        usage: completion.usage,
+        type: 'json'
+      });
+
+    } catch (parseError) {
+      console.warn('JSON parse error, falling back to text response:', parseError);
+      // Fallback to text response if JSON parsing fails
+      res.status(200).json({
+        message: aiResponse,
+        usage: completion.usage,
+        type: 'text'
+      });
     }
 
+  } catch (error: any) {
+    console.error('OpenAI API error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+      status: error.status
+    });
+    
+    // Handle specific OpenAI errors
+    if (error.code === 'invalid_api_key') {
+      return res.status(401).json({ 
+        message: 'Invalid OpenAI API key. Please check your configuration.' 
+      });
+    }
+    
+    if (error.code === 'insufficient_quota') {
+      return res.status(429).json({ 
+        message: 'OpenAI API quota exceeded. Please check your usage limits.' 
+      });
+    }
+    
+    if (error.code === 'model_not_found') {
+      return res.status(400).json({ 
+        message: 'Model not available. Please try again later.' 
+      });
+    }
+    
+    if (error.message && error.message.includes('JSON')) {
+      return res.status(500).json({ 
+        message: 'AI response formatting error. Please try again.' 
+      });
+    }
+
+    // Generic error response
     res.status(500).json({ 
-      message: 'Failed to get AI response. Please try again later.' 
+      message: 'Failed to get AI response. Please try again later.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 }

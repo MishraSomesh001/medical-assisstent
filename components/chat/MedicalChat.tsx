@@ -4,12 +4,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import QuickActions from './QuickActions';
 import MessageContent from './MessageContent';
+import JsonMessageContent from './JsonMessageContent';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
-  content: string;
+  content: string | any;
   timestamp: Date;
+  type?: 'text' | 'json';
 }
 
 export default function MedicalChat() {
@@ -18,25 +20,40 @@ export default function MedicalChat() {
     {
       id: '1',
       role: 'assistant',
-      content: `**Welcome to Your AI Medical Assistant!** 🤗
-
-I'm here to help you with health-related questions and provide general medical guidance. Here's what I can assist you with:
-
-**🩺 What I Can Help With:**
-• General health information and wellness tips
-• Symptom guidance and when to seek care
-• Nutrition and exercise recommendations  
-• Mental health and stress management
-• Medication information (general)
-• Preventive care suggestions
-
-**⚠️ Important Reminder:**
-I provide general information only and cannot replace professional medical advice. Always consult healthcare professionals for personalized care.
-
-**🚨 For Emergencies:** Call your local emergency services immediately.
-
-How can I help you today? Feel free to ask a question or use the quick action buttons below! 💙`,
+      content: {
+        greeting: "Welcome to Your AI Medical Assistant! 🤗",
+        mainContent: {
+          summary: "I'm here to help you with health-related questions and provide general medical guidance.",
+          keyPoints: [
+            "General health information and wellness tips",
+            "Symptom guidance and when to seek care",
+            "Nutrition and exercise recommendations",
+            "Mental health and stress management",
+            "Medication information (general)",
+            "Preventive care suggestions"
+          ],
+          recommendations: [
+            {
+              title: "Ask Questions",
+              description: "Feel free to ask about any health concerns or symptoms you may have",
+              icon: "🩺"
+            },
+            {
+              title: "Use Quick Actions",
+              description: "Try the quick action buttons below for common health topics",
+              icon: "⚡"
+            }
+          ]
+        },
+        whenToSeekHelp: {
+          urgentSigns: ["Severe chest pain", "Difficulty breathing", "Loss of consciousness"],
+          consultDoctor: ["Persistent symptoms", "Worsening conditions", "Medication questions"]
+        },
+        disclaimer: "I provide general information only and cannot replace professional medical advice. Always consult healthcare professionals for personalized care.",
+        supportiveClosing: "How can I help you today? 💙"
+      },
       timestamp: new Date(),
+      type: 'json'
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -52,13 +69,18 @@ How can I help you today? Feel free to ask a question or use the quick action bu
   }, [messages]);
 
   const sendMessage = async (messageText?: string) => {
-    const textToSend = messageText || inputMessage;
-    if (!textToSend.trim() || isLoading) return;
+    // Ensure we have a valid string
+    const textToSend = typeof messageText === 'string' ? messageText : inputMessage;
+    
+    // Check if textToSend is a string and not empty
+    if (typeof textToSend !== 'string' || !textToSend.trim() || isLoading) {
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: textToSend,
+      content: textToSend.trim(),
       timestamp: new Date(),
     };
 
@@ -68,9 +90,10 @@ How can I help you today? Feel free to ask a question or use the quick action bu
 
     try {
       // Prepare conversation history (last 10 messages for context)
+      // Convert JSON content to string for API compatibility
       const conversationHistory = messages.slice(-10).map(msg => ({
         role: msg.role,
-        content: msg.content
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
       }));
 
       const response = await fetch('/api/chat/medical', {
@@ -79,7 +102,7 @@ How can I help you today? Feel free to ask a question or use the quick action bu
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: textToSend,
+          message: textToSend.trim(),
           conversationHistory,
         }),
       });
@@ -95,6 +118,7 @@ How can I help you today? Feel free to ask a question or use the quick action bu
         role: 'assistant',
         content: data.message,
         timestamp: new Date(),
+        type: data.type === 'json' ? 'json' : 'text',
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -119,15 +143,33 @@ How can I help you today? Feel free to ask a question or use the quick action bu
     }
   };
 
+  const handleSendClick = () => {
+    if (inputMessage && typeof inputMessage === 'string' && inputMessage.trim()) {
+      sendMessage();
+    }
+  };
+
   const clearChat = () => {
     setMessages([
       {
         id: '1',
         role: 'assistant',
-        content: `**Welcome Back!** 🤗
-
-I'm your AI medical assistant, ready to help with your health questions. How can I assist you today?`,
+        content: {
+          greeting: "Welcome Back! 🤗",
+          mainContent: {
+            summary: "I'm your AI medical assistant, ready to help with your health questions.",
+            keyPoints: [],
+            recommendations: []
+          },
+          whenToSeekHelp: {
+            urgentSigns: [],
+            consultDoctor: []
+          },
+          disclaimer: "This is general information only. Always consult healthcare professionals for medical advice.",
+          supportiveClosing: "How can I assist you today? 💙"
+        },
         timestamp: new Date(),
+        type: 'json'
       }
     ]);
   };
@@ -180,7 +222,11 @@ I'm your AI medical assistant, ready to help with your health questions. How can
               }`}
             >
               <div className={`${message.role === 'assistant' ? 'prose prose-sm max-w-none' : ''}`}>
-                <MessageContent content={message.content} isUser={message.role === 'user'} />
+                {message.type === 'json' ? (
+                  <JsonMessageContent content={message.content} isUser={message.role === 'user'} />
+                ) : (
+                  <MessageContent content={message.content} isUser={message.role === 'user'} />
+                )}
               </div>
               <p className={`text-xs mt-3 ${
                 message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
