@@ -271,7 +271,7 @@ export default function MedicalChat() {
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask me about your health concerns, symptoms, or general wellness questions..."
-            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-500"
             rows={2}
             disabled={isLoading}
           />
