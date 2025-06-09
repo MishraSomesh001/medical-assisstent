@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
 import clientPromise from '../../../lib/mongodb';
+import { MongoClient } from "mongodb";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -25,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const client = await clientPromise;
+    const client: MongoClient = await clientPromise;
     const users = client.db().collection('users');
 
     // Check if user already exists

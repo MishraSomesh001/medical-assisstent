@@ -16,8 +16,8 @@ export default function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
+    setIsLoading(true);
     setSuccess('');
 
     // Validation
@@ -50,10 +50,10 @@ export default function SignUpPage() {
           router.push('/auth/signin');
         }, 2000);
       } else {
-        setError(data.message || 'An error occurred');
+        throw new Error(data.message || 'Signup failed');
       }
-    } catch (error) {
-      setError('An error occurred. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Signup failed');
     } finally {
       setIsLoading(false);
     }

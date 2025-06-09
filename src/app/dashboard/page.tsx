@@ -91,6 +91,16 @@ export default function DashboardPage() {
                     Try Symptom Checker
                   </a>
                 </div>
+                <div className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Health Metrics</h3>
+                  <p className="text-gray-600">Track your weight, blood pressure, blood sugar, and medication history with interactive charts</p>
+                  <a
+                    href="/dashboard/metrics"
+                    className="mt-4 inline-block bg-blue-800 text-white px-4 py-2 rounded-md hover:bg-blue-900 transition-colors"
+                  >
+                    View Metrics
+                  </a>
+                </div>
               </div>
             </div>
           </div>

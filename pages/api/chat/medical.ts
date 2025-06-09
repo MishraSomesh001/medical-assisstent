@@ -2,6 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../../lib/auth.config';
 import OpenAI from 'openai';
+import clientPromise from '../../../lib/mongodb';
+import { MongoClient } from 'mongodb';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -61,6 +63,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
+
+  const userId = session.user.id;
+  const client: MongoClient = await clientPromise;
+  const db = client.db();
+  const chatCollection = db.collection('chat_history');
 
   const { message, conversationHistory = [] } = req.body;
 
@@ -123,6 +130,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Return structured JSON response
+      try {
+        await chatCollection.insertOne({
+          userId,
+          userMessage: message,
+          conversationHistory,
+          aiResponse: parsedResponse,
+          createdAt: new Date(),
+        });
+      } catch (dbError) {
+        console.error('Failed to save chat history:', dbError);
+        // Don't block the response, but log the error
+      }
       res.status(200).json({
         message: parsedResponse,
         usage: completion.usage,
