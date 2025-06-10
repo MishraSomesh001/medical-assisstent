@@ -1,10 +1,6 @@
 import { MongoClient } from "mongodb";
 
 const uri = process.env.MONGODB_URI;
-const options = {
-  useUnifiedTopology: true,
-  useNewUrlParser: true,
-};
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
@@ -20,7 +16,7 @@ if (!process.env.MONGODB_URI) {
 
 if (process.env.NODE_ENV === "development") {
   if (!global._mongoClientPromise) {
-    client = new MongoClient(uri!, options);
+    client = new MongoClient(uri!);
     global._mongoClientPromise = client.connect().catch(err => {
       console.error("MongoDB connection error:", err);
       throw err;
@@ -28,7 +24,7 @@ if (process.env.NODE_ENV === "development") {
   }
   clientPromise = global._mongoClientPromise;
 } else {
-  client = new MongoClient(uri!, options);
+  client = new MongoClient(uri!);
   clientPromise = client.connect().catch(err => {
     console.error("MongoDB connection error:", err);
     throw err;
