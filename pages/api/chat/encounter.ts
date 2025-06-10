@@ -22,9 +22,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = client.db();
     const chatCollection = db.collection('chat_history');
     if (encounterId) {
+      const existing = await chatCollection.findOne({ userId, encounterId });
+      const createdAt = existing?.createdAt || new Date();
       await chatCollection.updateOne(
         { userId, encounterId },
-        { $set: { messages, updatedAt: new Date() } },
+        { $set: { messages, updatedAt: new Date(), createdAt } },
         { upsert: true }
       );
       return res.status(200).json({ message: 'Encounter updated' });

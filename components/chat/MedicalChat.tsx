@@ -40,7 +40,19 @@ export default function MedicalChat() {
         const res = await fetch('/api/chat/history');
         if (res.ok) {
           const data = await res.json();
-          setChatHistory(data.history || []);
+          // Parse timestamps in messages
+          const parsedHistory = (data.history || []).map((item: any) => {
+            if (Array.isArray(item.messages)) {
+              item.messages = item.messages.map((msg: any) => ({
+                ...msg,
+                timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+              }));
+            }
+            if (item.createdAt) item.createdAt = new Date(item.createdAt);
+            if (item.updatedAt) item.updatedAt = new Date(item.updatedAt);
+            return item;
+          });
+          setChatHistory(parsedHistory);
         } else {
           setError('Failed to load chat history.');
         }
@@ -139,10 +151,10 @@ export default function MedicalChat() {
     setInputMessage('');
     setIsLoading(true);
     setError(null);
+    let updatedMessages: Message[] = [];
 
     try {
       // Prepare conversation history (last 10 messages for context)
-      // Convert JSON content to string for API compatibility
       const conversationHistory = encounterMessages.slice(-10).map(msg => ({
         role: msg.role,
         content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
@@ -173,7 +185,17 @@ export default function MedicalChat() {
         type: data.type === 'json' ? 'json' : 'text',
       };
 
-      setEncounterMessages(prev => [...prev, aiMessage]);
+      updatedMessages = [...encounterMessages, userMessage, aiMessage];
+      setEncounterMessages(updatedMessages);
+      // Save the encounter after every message exchange
+      await fetch('/api/chat/encounter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updatedMessages,
+          encounterId,
+        }),
+      });
     } catch (error: any) {
       setError(error.message || 'Failed to send message.');
       const errorMessage: Message = {
@@ -182,7 +204,17 @@ export default function MedicalChat() {
         content: 'I apologize, but I\'m having trouble responding right now. Please try again in a moment.',
         timestamp: new Date(),
       };
-      setEncounterMessages(prev => [...prev, errorMessage]);
+      updatedMessages = [...encounterMessages, userMessage, errorMessage];
+      setEncounterMessages(updatedMessages);
+      // Save the encounter even if there was an error
+      await fetch('/api/chat/encounter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updatedMessages,
+          encounterId,
+        }),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -371,6 +403,14 @@ export default function MedicalChat() {
           <ul className="space-y-3">
             {chatHistory.map((item, idx) => {
               const hasMessages = Array.isArray(item.messages) && item.messages.length > 0;
+              // Find first user message, fallback to first assistant message
+              let preview = '';
+              if (hasMessages) {
+                const userMsg = item.messages.find((m: any) => m.role === 'user');
+                const assistantMsg = item.messages.find((m: any) => m.role === 'assistant');
+                preview = userMsg?.content || assistantMsg?.content || 'No preview available';
+                if (typeof preview === 'object') preview = JSON.stringify(preview);
+              }
               return (
                 <li
                   key={item._id || idx}
@@ -386,7 +426,7 @@ export default function MedicalChat() {
                     {item.createdAt ? `${new Date(item.createdAt).toLocaleDateString()} ${new Date(item.createdAt).toLocaleTimeString()}` : ''}
                   </div>
                   <div className="font-medium text-gray-700 truncate">
-                    {hasMessages && item.messages[1]?.content ? item.messages[1].content : 'No preview available'}
+                    {preview}
                   </div>
                 </li>
               );
